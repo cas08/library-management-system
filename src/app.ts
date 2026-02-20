@@ -1,0 +1,20 @@
+import express, { type Request, type Response } from 'express';
+import routes from './routes/index';
+import cors from 'cors';
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+app.use(routes);
+
+app.use((_req: Request, res: Response) => {
+    res.status(404).json({ error: 'Not found' });
+});
+
+app.use((err: Error, _req: Request, res: Response) => {
+    console.error(err.stack);
+    res.status(500).json({ error: 'Internal server error' });
+});
+
+export default app;
