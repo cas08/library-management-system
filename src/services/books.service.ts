@@ -1,70 +1,58 @@
-import { randomUUID } from 'crypto';
-import type { Book, CreateBookObj, UpdateBookObj } from '../schemas';
-import { bookStorage, loanStorage } from '../storage';
+import prisma from '../db';
+import type { CreateBookObj, UpdateBookObj } from '../schemas';
+import { Prisma } from '../generated/prisma/client';
+import { HttpError } from '../lib/httpError';
 
 export const booksService = {
-    getAll(): Book[] {
-        return bookStorage.getAll();
+    async getAll() {
+        return prisma.book.findMany();
     },
 
-    getById(id: string): Book | undefined {
-        return bookStorage.getById(id);
+    async getById(id: string) {
+        return prisma.book.findUnique({ where: { id } });
     },
 
-    async create(data: CreateBookObj): Promise<Book> {
-        const existingBooks = bookStorage.getAll();
-        const isDuplicateIsbn = existingBooks.some(book => book.isbn === data.isbn);
-
-        if (isDuplicateIsbn) {
-            throw new Error(`Book with ISBN "${data.isbn}" already exists`);
-        }
-
-        const book: Book = {
-            id: randomUUID(),
-            ...data,
-        };
-
-        bookStorage.create(book);
-        await bookStorage.saveToFile();
-        return book;
-    },
-
-    async update(id: string, data: UpdateBookObj): Promise<Book> {
-        const existing = bookStorage.getById(id);
-
-        if (!existing) {
-            throw new Error(`Book with id "${id}" not found`);
-        }
-
-        if (data.isbn && data.isbn !== existing.isbn) {
-            const allBooks = bookStorage.getAll();
-            const isDuplicateIsbn = allBooks.some(
-                book => book.isbn === data.isbn && book.id !== id
-            );
-            if (isDuplicateIsbn) {
-                throw new Error(`Book with ISBN "${data.isbn}" already exists`);
+    async create(data: CreateBookObj) {
+        try {
+            return await prisma.book.create({ data });
+        } catch (err) {
+            if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+                throw new HttpError(409, `Book with ISBN "${data.isbn}" already exists`);
             }
+            throw err;
         }
-
-        const updated: Book = { ...existing, ...data };
-        bookStorage.update(id, updated);
-        await bookStorage.saveToFile();
-        return updated;
     },
 
-    async delete(id: string): Promise<void> {
-        const existing = bookStorage.getById(id);
-
+    async update(id: string, data: UpdateBookObj) {
+        const existing = await prisma.book.findUnique({ where: { id } });
         if (!existing) {
-            throw new Error(`Book with id "${id}" not found`);
+            throw new HttpError(404, `Book with id "${id}" not found`);
         }
 
-        const activeLoan = loanStorage.findActiveByBookId(id);
+        try {
+            return await prisma.book.update({ where: { id }, data });
+        } catch (err) {
+            if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+                throw new HttpError(409, `Book with ISBN "${data.isbn}" already exists`);
+            }
+            throw err;
+        }
+    },
+
+    async delete(id: string) {
+        const existing = await prisma.book.findUnique({ where: { id } });
+        if (!existing) {
+            throw new HttpError(404, `Book with id "${id}" not found`);
+        }
+
+        const activeLoan = await prisma.loan.findFirst({
+            where: { bookId: id, status: 'ACTIVE' },
+        });
         if (activeLoan) {
-            throw new Error(`Book with id "${id}" cannot be deleted while it has an active loan`);
+            throw new HttpError(409, `Book with id "${id}" cannot be deleted while it has an active loan`);
         }
 
-        bookStorage.delete(id);
-        await bookStorage.saveToFile();
+        await prisma.loan.deleteMany({ where: { bookId: id } });
+        await prisma.book.delete({ where: { id } });
     },
 };

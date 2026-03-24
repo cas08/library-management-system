@@ -1,14 +1,13 @@
+import { env } from './config/env';
 import app from './app';
-import { loadFromFiles } from './storage';
-
-const PORT = 3000;
+import prisma from './db';
 
 async function start(): Promise<void> {
-    await loadFromFiles();
-    console.log('Data loaded from files');
+    await prisma.$connect();
+    console.log('Connected to database');
 
-    app.listen(PORT, () => {
-        console.log(`Library API running at http://localhost:${PORT}`);
+    app.listen(env.PORT, () => {
+        console.log(`Library API running at http://localhost:${env.PORT}`);
     });
 }
 

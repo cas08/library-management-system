@@ -15,7 +15,3 @@ export const updateBookSchema = createBookSchema.partial();
 // TypeScript типи
 export type CreateBookObj = z.infer<typeof createBookSchema>;
 export type UpdateBookObj = z.infer<typeof updateBookSchema>;
-
-export type Book = CreateBookObj & {
-    id: string;
-};

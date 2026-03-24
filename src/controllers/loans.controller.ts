@@ -1,11 +1,17 @@
-import type { Request, Response } from 'express';
-import { createLoanSchema } from '../schemas';
-import { loansService } from '../services';
-import { treeifyError } from 'zod';
+import type {Request, Response} from 'express';
+import {createLoanSchema} from '../schemas';
+import {loansService} from '../services';
+import {treeifyError} from 'zod';
+import {HttpError} from '../lib/httpError';
 
 export const loansController = {
-    getAll(_req: Request, res: Response): void {
-        const loans = loansService.getAll();
+    async getAll(req: Request, res: Response): Promise<void> {
+        const user = req.user!;
+
+        const loans = user.role === 'ADMIN'
+            ? await loansService.getAll()
+            : await loansService.getByUserId(user.userId);
+
         res.json(loans);
     },
 
@@ -13,28 +19,36 @@ export const loansController = {
         const result = createLoanSchema.safeParse(req.body);
 
         if (!result.success) {
-            res.status(400).json({ error: treeifyError(result.error) });
+            res.status(400).json({error: treeifyError(result.error)});
             return;
         }
 
         try {
-            const loan = await loansService.create(result.data);
+            const loan = await loansService.create({
+                userId: req.user!.userId,
+                bookId: result.data.bookId,
+            });
             res.status(201).json(loan);
         } catch (err) {
-            const message = (err as Error).message;
-            const status = message.includes('not found') ? 404 : 422;
-            res.status(status).json({ error: message });
+            if (err instanceof HttpError) {
+                res.status(err.status).json({error: err.message});
+            } else {
+                res.status(500).json({error: 'Internal server error'});
+            }
         }
     },
 
     async returnBook(req: Request, res: Response): Promise<void> {
         try {
-            const loan = await loansService.returnBook(req.params.id as string);
+            const user = req.user!;
+            const loan = await loansService.returnBook(req.params.id as string, user.userId, user.role);
             res.json(loan);
         } catch (err) {
-            const message = (err as Error).message;
-            const status = message.includes('not found') ? 404 : 422;
-            res.status(status).json({ error: message });
+            if (err instanceof HttpError) {
+                res.status(err.status).json({error: err.message});
+            } else {
+                res.status(500).json({error: 'Internal server error'});
+            }
         }
     },
 };
