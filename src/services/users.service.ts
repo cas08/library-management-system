@@ -1,33 +1,20 @@
-import { randomUUID } from 'crypto';
-import type { User, CreateUserObj } from '../schemas';
-import { userStorage } from '../storage';
+import prisma from '../db';
+
+const userSelect = {
+    id: true,
+    name: true,
+    email: true,
+    role: true,
+    createdAt: true,
+    updatedAt: true,
+} as const;
 
 export const usersService = {
-    getAll(): User[] {
-        return userStorage.getAll();
+    async getAll() {
+        return prisma.user.findMany({ select: userSelect });
     },
 
-    getById(id: string): User | undefined {
-        return userStorage.getById(id);
-    },
-
-    async create(data: CreateUserObj): Promise<User> {
-        const existingUsers = userStorage.getAll();
-        const isDuplicateEmail = existingUsers.some(
-            user => user.email === data.email
-        );
-
-        if (isDuplicateEmail) {
-            throw new Error(`User with email "${data.email}" already exists`);
-        }
-
-        const user: User = {
-            id: randomUUID(),
-            ...data,
-        };
-
-        userStorage.create(user);
-        await userStorage.saveToFile();
-        return user;
+    async getById(id: string) {
+        return prisma.user.findUnique({ where: { id }, select: userSelect });
     },
 };

@@ -1,3 +1,4 @@
-export * from './books.service.js';
-export * from './users.service.js';
-export * from './loans.service.js';
+export * from './books.service';
+export * from './users.service';
+export * from './loans.service';
+export * from './auth.service';

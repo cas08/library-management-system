@@ -1,19 +1,20 @@
-import type { Request, Response } from 'express';
-import { createBookSchema, updateBookSchema } from '../schemas';
-import { booksService } from '../services';
-import { treeifyError } from 'zod';
+import type {Request, Response} from 'express';
+import {createBookSchema, updateBookSchema} from '../schemas';
+import {booksService} from '../services';
+import {treeifyError} from 'zod';
+import {HttpError} from '../lib/httpError';
 
 export const booksController = {
-    getAll(_req: Request, res: Response): void {
-        const books = booksService.getAll();
+    async getAll(_req: Request, res: Response): Promise<void> {
+        const books = await booksService.getAll();
         res.json(books);
     },
 
-    getById(req: Request, res: Response): void {
-        const book = booksService.getById(req.params.id as string);
+    async getById(req: Request, res: Response): Promise<void> {
+        const book = await booksService.getById(req.params.id as string);
 
         if (!book) {
-            res.status(404).json({ error: `Book with id "${req.params.id}" not found` });
+            res.status(404).json({error: `Book with id "${req.params.id}" not found`});
             return;
         }
 
@@ -24,7 +25,7 @@ export const booksController = {
         const result = createBookSchema.safeParse(req.body);
 
         if (!result.success) {
-            res.status(400).json({ error: treeifyError(result.error) });
+            res.status(400).json({error: treeifyError(result.error)});
             return;
         }
 
@@ -32,7 +33,11 @@ export const booksController = {
             const book = await booksService.create(result.data);
             res.status(201).json(book);
         } catch (err) {
-            res.status(409).json({ error: (err as Error).message });
+            if (err instanceof HttpError) {
+                res.status(err.status).json({error: err.message});
+            } else {
+                res.status(500).json({error: 'Internal server error'});
+            }
         }
     },
 
@@ -40,7 +45,7 @@ export const booksController = {
         const result = updateBookSchema.safeParse(req.body);
 
         if (!result.success) {
-            res.status(400).json({ error: treeifyError(result.error) });
+            res.status(400).json({error: treeifyError(result.error)});
             return;
         }
 
@@ -48,9 +53,11 @@ export const booksController = {
             const book = await booksService.update(req.params.id as string, result.data);
             res.json(book);
         } catch (err) {
-            const message = (err as Error).message;
-            const status = message.includes('not found') ? 404 : 409;
-            res.status(status).json({ error: message });
+            if (err instanceof HttpError) {
+                res.status(err.status).json({error: err.message});
+            } else {
+                res.status(500).json({error: 'Internal server error'});
+            }
         }
     },
 
@@ -59,9 +66,11 @@ export const booksController = {
             await booksService.delete(req.params.id as string);
             res.status(204).send();
         } catch (err) {
-            const message = (err as Error).message;
-            const status = message.includes('not found') ? 404 : 409;
-            res.status(status).json({ error: message });
+            if (err instanceof HttpError) {
+                res.status(err.status).json({error: err.message});
+            } else {
+                res.status(500).json({error: 'Internal server error'});
+            }
         }
     },
 };
