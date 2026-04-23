@@ -1,7 +1,7 @@
 import {useState, useEffect} from "react";
-import {Button, Modal, Stack, TextInput, PasswordInput, Badge, Group, Text} from "@mantine/core";
+import {Avatar, Badge, Button, Group, Modal, PasswordInput, Stack, Text, TextInput} from "@mantine/core";
 import {useDisclosure} from "@mantine/hooks";
-import {apiFetch, getToken, setToken, clearToken, API} from "../../api/apiFetch";
+import {apiFetch, API, clearToken, getToken, resolveAssetUrl, setToken} from "../../api/apiFetch";
 import {Section} from "../shared/Section";
 import {ResultModal} from "../shared/ResultModal";
 import type {AuthUser} from "../../types/frontend";
@@ -18,6 +18,12 @@ export function AuthSection() {
 
     const [loginModal, {open: openLogin, close: closeLogin}] = useDisclosure(false);
     const [loginForm, setLoginForm] = useState({email: "", password: ""});
+
+    const [requestResetModal, {open: openRequestReset, close: closeRequestReset}] = useDisclosure(false);
+    const [requestResetForm, setRequestResetForm] = useState({email: ""});
+
+    const [resetModal, {open: openReset, close: closeReset}] = useDisclosure(false);
+    const [resetForm, setResetForm] = useState({token: "", password: ""});
 
     const show = (data: unknown) => {
         setResult(data);
@@ -56,6 +62,18 @@ export function AuthSection() {
         return () => window.removeEventListener("message", handler);
     }, []);
 
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const resetToken = params.get("reset");
+        if (resetToken) {
+            setResetForm({token: resetToken, password: ""});
+            openReset();
+            params.delete("reset");
+            const qs = params.toString();
+            window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+        }
+    }, [openReset]);
+
     const handleGoogleLogin = () => {
         const width = 500;
         const height = 600;
@@ -68,13 +86,18 @@ export function AuthSection() {
         );
     };
 
+    const avatarSrc = resolveAssetUrl(currentUser?.avatarUrl);
+
     return (
         <Section title="Auth" color="violet">
             <Group gap="sm" align="center">
                 {currentUser ? (
-                    <Badge color="green" size="lg" variant="light">
-                        {currentUser.name} ({currentUser.role})
-                    </Badge>
+                    <>
+                        <Avatar src={avatarSrc} alt={currentUser.name} radius="xl" size="md"/>
+                        <Badge color="green" size="lg" variant="light">
+                            {currentUser.name} ({currentUser.role})
+                        </Badge>
+                    </>
                 ) : (
                     <Badge color="gray" size="lg" variant="light">
                         Not logged in
@@ -87,11 +110,10 @@ export function AuthSection() {
             </Button>
             <Modal opened={registerModal} onClose={closeRegister} title="Register" centered>
                 <Stack>
-                    <TextInput label="Name" value={regForm.name}
-                               onChange={(e) => {
-                                   const v = e.target.value;
-                                   setRegForm((f) => ({...f, name: v}));
-                               }}/>
+                    <TextInput label="Name" value={regForm.name} onChange={(e) => {
+                        const v = e.target.value;
+                        setRegForm((f) => ({...f, name: v}));
+                    }}/>
                     <TextInput label="Email" value={regForm.email} onChange={(e) => {
                         const v = e.target.value;
                         setRegForm((f) => ({...f, email: v}));
@@ -134,6 +156,57 @@ export function AuthSection() {
             <Button variant="light" color="indigo" onClick={handleGoogleLogin}>
                 Google OAuth
             </Button>
+
+            <Button variant="light" color="orange" onClick={openRequestReset}>
+                POST /auth/request-password-reset
+            </Button>
+            <Modal opened={requestResetModal} onClose={closeRequestReset} title="Forgot password" centered>
+                <Stack>
+                    <Text size="sm" c="dimmed">
+                        Введіть email - якщо він зареєстрований, надішлемо лист з посиланням.
+                    </Text>
+                    <TextInput label="Email" value={requestResetForm.email} onChange={(e) => {
+                        const v = e.target.value;
+                        setRequestResetForm({email: v});
+                    }}/>
+                    <Button color="orange" onClick={async () => {
+                        closeRequestReset();
+                        const r = await apiFetch("/auth/request-password-reset", {
+                            method: "POST",
+                            body: JSON.stringify(requestResetForm),
+                        });
+                        show(r.data);
+                    }}>Send reset email</Button>
+                </Stack>
+            </Modal>
+
+            <Button variant="light" color="yellow" onClick={openReset}>
+                POST /auth/reset-password
+            </Button>
+            <Modal opened={resetModal} onClose={closeReset} title="Reset password" centered>
+                <Stack>
+                    <Text size="sm" c="dimmed">
+                        Вставте токен з листа та задайте новий пароль.
+                    </Text>
+                    <TextInput label="Reset token" value={resetForm.token} onChange={(e) => {
+                        const v = e.target.value;
+                        setResetForm((f) => ({...f, token: v}));
+                    }}/>
+                    <PasswordInput label="New password (min 8 chars)" value={resetForm.password} onChange={(e) => {
+                        const v = e.target.value;
+                        setResetForm((f) => ({...f, password: v}));
+                    }}/>
+                    <Button color="yellow" onClick={async () => {
+                        closeReset();
+                        const r = await apiFetch("/auth/reset-password", {
+                            method: "POST",
+                            body: JSON.stringify(resetForm),
+                        });
+                        show(r.data);
+                        if (r.ok) setResetForm({token: "", password: ""});
+                    }}>Reset password</Button>
+                </Stack>
+            </Modal>
 
             {currentUser && (
                 <Button variant="light" color="red" onClick={handleLogout}>
