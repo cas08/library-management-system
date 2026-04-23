@@ -25,3 +25,6 @@ dist-ssr
 *.sw?
 
 /src/generated/prisma
+
+/src/uploads/avatars/*
+!/src/uploads/avatars/.gitkeep

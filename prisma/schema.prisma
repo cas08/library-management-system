@@ -18,15 +18,19 @@ enum LoanStatus {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  name         String
-  email        String   @unique
-  passwordHash String?
-  role         Role     @default(USER)
-  googleId     String?  @unique
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  loans        Loan[]
+  id                 String    @id @default(uuid())
+  name               String
+  email              String    @unique
+  passwordHash       String?
+  role               Role      @default(USER)
+  googleId           String?   @unique
+  avatarUrl          String?
+  avatarPublicId     String?
+  resetTokenHash     String?   @unique
+  resetTokenExpires  DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  loans              Loan[]
 }
 
 model Book {

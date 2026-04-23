@@ -12,15 +12,26 @@ export function clearToken(): void {
     localStorage.removeItem("token");
 }
 
+export function resolveAssetUrl(url: string | null | undefined): string | null {
+    if (!url) return null;
+    if (/^https?:\/\//i.test(url)) return url;
+    return `${API}${url}`;
+}
+
 export async function apiFetch(path: string, options?: RequestInit) {
     const token = getToken();
-    const headers: HeadersInit = {
-        "Content-Type": "application/json",
-        ...options?.headers,
+    const isFormData = options?.body instanceof FormData;
+
+    const headers: Record<string, string> = {
+        ...(options?.headers as Record<string, string> | undefined),
     };
 
+    if (!isFormData && !headers["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+    }
+
     if (token) {
-        (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+        headers["Authorization"] = `Bearer ${token}`;
     }
 
     const res = await fetch(`${API}${path}`, {...options, headers});
